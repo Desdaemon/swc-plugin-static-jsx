@@ -1,4 +1,4 @@
-# transform-static-jsx
+# swc-plugin-static-jsx
 SWC plugin to transform JSX calls to static templates
 
 ```tsx
