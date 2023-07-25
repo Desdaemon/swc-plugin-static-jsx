@@ -1,15 +1,15 @@
 {
-    "name": "transform-static-jsx",
+    "name": "swc-plugin-static-jsx",
     "version": "0.1.0",
     "description": "",
     "author": "Viet Dinh",
     "license": "ISC",
     "keywords": ["swc-plugin"],
-    "main": "transform_static_jsx.wasm",
+    "main": "swc_plugin_static_jsx.wasm",
     "scripts": {
         "prepublishOnly": "cargo build-wasi --profile min",
-        "prepack": "cp target/wasm32-wasi/min/transform_static_jsx.wasm .",
-        "postpack": "rm transform_static_jsx.wasm"
+        "prepack": "cp target/wasm32-wasi/min/swc_plugin_static_jsx.wasm .",
+        "postpack": "rm swc_plugin_static_jsx.wasm"
     },
-    "files": ["transform_static_jsx.wasm", "."]
+    "files": ["swc_plugin_static_jsx.wasm", "."]
 }

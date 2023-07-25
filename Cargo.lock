@@ -1153,18 +1153,18 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.174"
+version = "1.0.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b88756493a5bd5e5395d53baa70b194b05764ab85b59e43e4b8f4e1192fa9b1"
+checksum = "5d25439cd7397d044e2748a6fe2432b5e85db703d6d097bd014b3c0ad1ebff0b"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.174"
+version = "1.0.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e5c3a298c7f978e53536f95a63bdc4c4a64550582f31a0359a9afda6aede62e"
+checksum = "b23f7ade6f110613c0d63858ddb8b94c1041f550eab58a16b371bdf2c9c80ab4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1346,6 +1346,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "swc-plugin-static-jsx"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "swc_core",
+ "testing",
+]
+
+[[package]]
 name = "swc_atoms"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1397,14 +1406,15 @@ dependencies = [
 
 [[package]]
 name = "swc_core"
-version = "0.79.24"
+version = "0.79.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52351bb18fb9aa6ebd11c854a7e9469842bef2236e686e050c57127d5955d8a7"
+checksum = "b5df4174b26a9991d15a8a2f5d0705756b8d0e2c7e12e52f7d2397cded8899c6"
 dependencies = [
  "once_cell",
  "swc_atoms",
  "swc_common",
  "swc_ecma_ast",
+ "swc_ecma_parser",
  "swc_ecma_transforms_base",
  "swc_ecma_transforms_testing",
  "swc_ecma_utils",
@@ -1925,15 +1935,6 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
-]
-
-[[package]]
-name = "transform-static-jsx"
-version = "0.1.0"
-dependencies = [
- "serde",
- "swc_core",
- "swc_ecma_parser",
 ]
 
 [[package]]

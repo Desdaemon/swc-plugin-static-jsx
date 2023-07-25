@@ -1,10 +1,10 @@
 [package]
-name = "transform-static-jsx"
+name = "swc-plugin-static-jsx"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 
 [profile.release]
 lto = true
@@ -17,8 +17,11 @@ strip = "symbols"
 
 [dependencies]
 serde = "1"
-swc_core = { version = "0.79.24", features = ["ecma_plugin_transform", "common", "ecma_visit", "ecma_ast", "ecma_utils"] }
-swc_ecma_parser = "0.137.4"
+swc_core = { version = "0.79.24", features = ["ecma_plugin_transform", "common", "ecma_visit", "ecma_ast", "ecma_utils", "ecma_parser"] }
+
+[dev-dependencies]
+testing = "0.33.21"
+swc_core = { version = "0.79.24", features = ["testing_transform"] }
 
 # .cargo/config defines few alias to build plugin.
 # cargo build-wasi generates wasm-wasi32 binary
