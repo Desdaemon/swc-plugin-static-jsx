@@ -149,16 +149,10 @@ impl TransformVisitor {
                         props: obj_props, ..
                     }) = expr.as_mut()
                     {
-                        let mut extractor = ExtractStaticProps::default();
+                        let mut extractor = ExtractStaticProps {
+                            buffer: self.quasi_last_mut(),
+                        };
                         obj_props.visit_mut_with(&mut extractor);
-                        props.extend(extractor.props.into_iter().map(|(key, value)| {
-                            let key = match key {
-                                PropName::Ident(ident) => ident.sym,
-                                PropName::Str(str) => str.value,
-                                _ => unreachable!(),
-                            };
-                            (key, value)
-                        }));
                         if !obj_props.is_empty() {
                             self.quasis.push(" ".to_string());
                             self.exprs.push(Box::new(Expr::Object(ObjectLit {
@@ -327,12 +321,11 @@ impl VisitMut for TransformVisitor {
     }
 }
 
-#[derive(Default)]
-pub struct ExtractStaticProps {
-    pub props: Vec<(PropName, Box<Expr>)>,
+pub struct ExtractStaticProps<'a> {
+    pub buffer: &'a mut String,
 }
 
-impl VisitMut for ExtractStaticProps {
+impl VisitMut for ExtractStaticProps<'_> {
     fn visit_mut_prop_or_spreads(&mut self, n: &mut Vec<PropOrSpread>) {
         VisitMutWith::visit_mut_children_with(n, self);
         n.retain(|elt| match elt {
@@ -347,9 +340,27 @@ impl VisitMut for ExtractStaticProps {
         })
     }
     fn visit_mut_key_value_prop(&mut self, n: &mut KeyValueProp) {
-        let (PropName::Ident(..) | PropName::Str(..)) = &n.key else {return};
-        // TODO: Anything else to allow?
-        let Expr::Lit(..) = n.value.as_ref() else {return};
-        self.props.push((n.key.clone(), n.value.take()))
+        let name = match &n.key {
+            PropName::Ident(ident) => ident.sym.as_ref(),
+            PropName::Str(str) => str.value.as_ref(),
+            _ => return,
+        };
+        match n.value.as_mut() {
+            lit @ Expr::Lit(Lit::Str(..) | Lit::Bool(..) | Lit::Num(..)) => match lit.take() {
+                Expr::Lit(Lit::Str(str)) => {
+                    _ = write!(self.buffer, "{name}=\"{}\" ", str.value);
+                }
+                Expr::Lit(Lit::Bool(bool)) => {
+                    if bool.value {
+                        _ = write!(self.buffer, "{name} ");
+                    }
+                }
+                Expr::Lit(Lit::Num(value)) => {
+                    _ = write!(self.buffer, "{name}=\"{}\"", value.value);
+                }
+                _ => todo!(),
+            },
+            _ => return,
+        }
     }
 }

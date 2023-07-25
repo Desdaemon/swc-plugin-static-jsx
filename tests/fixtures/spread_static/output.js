@@ -1,9 +1,6 @@
-String.raw`<div ${{
+String.raw`<div foo="foo" cool ${{
     $$spread: {
         "bar:bar": `bar${true}`,
         baz
     }
-}} ${{
-    "foo": "foo",
-    "cool": true
 }} />`
