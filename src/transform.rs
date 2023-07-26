@@ -1,48 +1,57 @@
+use serde::Deserialize;
 use std::borrow::Cow;
 use std::fmt::Write;
-
 use swc_core::common::util::take::Take;
 use swc_core::common::DUMMY_SP;
 use swc_core::ecma::ast::*;
-use swc_core::ecma::atoms::{Atom, JsWord};
-
 use swc_core::ecma::atoms::js_word;
-// use swc_core::ecma::parser::{Syntax, TsConfig};
+use swc_core::ecma::atoms::{Atom, JsWord};
 use swc_core::ecma::visit::{VisitMut, VisitMutWith};
 
+#[derive(Deserialize)]
 pub struct TransformVisitor {
-    pub templator: Box<Expr>,
-    pub quasis: Vec<String>,
-    pub exprs: Vec<Box<Expr>>,
+    #[serde(deserialize_with = "de::expr", default = "default_template_fn")]
+    pub template: Box<Expr>,
+    #[serde(deserialize_with = "de::ident", default = "default_spread")]
     pub spread: Ident,
+    #[serde(deserialize_with = "de::ident", default = "default_child")]
     pub child: Ident,
+    #[serde(deserialize_with = "de::ident", default = "default_children")]
     pub children: Ident,
+    #[serde(skip)]
+    pub quasis: Vec<String>,
+    #[serde(skip)]
+    pub exprs: Vec<Box<Expr>>,
 }
 
-#[derive(Default)]
-pub struct StaticPropVisitor {
-    pub results: Vec<()>,
+#[inline]
+fn default_spread() -> Ident {
+    Ident::new("$$spread".into(), DUMMY_SP)
 }
-
-// const TSX: Syntax = Syntax::Typescript(TsConfig {
-//     tsx: true,
-//     decorators: true,
-//     dts: false,
-//     no_early_errors: false,
-//     disallow_ambiguous_jsx_like: true,
-// });
+#[inline]
+fn default_child() -> Ident {
+    Ident::new("$$child".into(), DUMMY_SP)
+}
+#[inline]
+fn default_children() -> Ident {
+    Ident::new("$$children".into(), DUMMY_SP)
+}
+#[inline]
+fn default_template_fn() -> Box<Expr> {
+    Box::new(Expr::Member(MemberExpr {
+        span: DUMMY_SP,
+        obj: Box::new(Expr::Ident(Ident::new(js_word!("String"), DUMMY_SP))),
+        prop: MemberProp::Ident(Ident::new("raw".into(), DUMMY_SP)),
+    }))
+}
 
 impl Default for TransformVisitor {
     fn default() -> Self {
         Self {
-            templator: Box::new(Expr::Member(MemberExpr {
-                span: DUMMY_SP,
-                obj: Box::new(Expr::Ident(Ident::new(js_word!("String"), DUMMY_SP))),
-                prop: MemberProp::Ident(Ident::new("raw".into(), DUMMY_SP)),
-            })),
-            child: Ident::new("$$child".into(), DUMMY_SP),
-            children: Ident::new("$$children".into(), DUMMY_SP),
-            spread: Ident::new("$$spread".into(), DUMMY_SP),
+            template: default_template_fn(),
+            child: default_child(),
+            children: default_children(),
+            spread: default_spread(),
             quasis: vec![],
             exprs: vec![],
         }
@@ -55,8 +64,8 @@ impl TransformVisitor {
         self.quasis.last_mut().unwrap()
     }
 
-    fn fold_jsx_element(&mut self, elt: JSXElement) {
-        let JSXOpeningElement { name, attrs, .. } = elt.opening;
+    fn fold_jsx_element(&mut self, elt: &mut JSXElement) {
+        let JSXOpeningElement { name, attrs, .. } = &mut elt.opening;
         let name = match name {
             JSXElementName::JSXNamespacedName(name) => format!("{}:{}", name.ns.sym, name.name.sym),
             JSXElementName::JSXMemberExpr(..) => unreachable!(),
@@ -76,14 +85,54 @@ impl TransformVisitor {
                     Some(JSXAttrValue::JSXExprContainer(JSXExprContainer {
                         expr: JSXExpr::Expr(expr),
                         ..
-                    })) => Some((
-                        name,
-                        Some(TransformVisitor::try_extract_tpl_from_expr(expr.as_ref())?),
-                    )),
+                    })) => match expr.as_ref() {
+                        Expr::Tpl(Tpl { quasis, exprs, .. }) if exprs.is_empty() => {
+                            match &quasis[..] {
+                                [TplElement { cooked, raw, .. }] => {
+                                    Some((name, Some(cooked.as_ref().unwrap_or(raw))))
+                                }
+                                _ => None,
+                            }
+                        }
+                        Expr::Lit(Lit::Bool(value)) if value.value => Some((name, None)),
+                        Expr::Lit(Lit::Str(Str { value, .. })) => {
+                            Some((name, Some(value.as_ref())))
+                        }
+                        _ => None,
+                    },
                     Some(_) => None,
                     None => Some((name, None)),
                 },
                 _ => None,
+            }
+        }
+
+        #[inline]
+        fn take_lit(lit: &mut Lit) -> Lit {
+            match lit {
+                Lit::Str(str) => Lit::Str(str.take()),
+                Lit::Bool(bool) => Lit::Bool(bool.take()),
+                Lit::Num(num) => Lit::Num(Number {
+                    span: num.span,
+                    value: num.value,
+                    raw: num.raw.clone(),
+                }),
+                Lit::BigInt(bigint) => Lit::BigInt(BigInt {
+                    span: bigint.span,
+                    value: bigint.value.clone(),
+                    raw: bigint.raw.clone(),
+                }),
+                Lit::JSXText(text) => Lit::JSXText(JSXText {
+                    span: text.span,
+                    value: text.value.clone(),
+                    raw: text.raw.clone(),
+                }),
+                Lit::Null(null) => Lit::Null(null.take()),
+                Lit::Regex(regex) => Lit::Regex(Regex {
+                    span: regex.span,
+                    exp: regex.exp.clone(),
+                    flags: regex.flags.clone(),
+                }),
             }
         }
 
@@ -129,22 +178,26 @@ impl TransformVisitor {
                     let name = Self::jsx_attr_name_as_str(&name);
                     if let Some(value) = value {
                         let value = match value {
-                            JSXAttrValue::Lit(lit) => Box::new(Expr::Lit(lit)),
+                            JSXAttrValue::Lit(lit) => Box::new(Expr::Lit(take_lit(lit))),
                             JSXAttrValue::JSXExprContainer(JSXExprContainer { expr, .. }) => {
                                 match expr {
-                                    JSXExpr::JSXEmptyExpr(empty) => Box::new(Expr::JSXEmpty(empty)),
-                                    JSXExpr::Expr(expr) => expr,
+                                    JSXExpr::JSXEmptyExpr(empty) => {
+                                        Box::new(Expr::JSXEmpty(*empty))
+                                    }
+                                    JSXExpr::Expr(expr) => expr.take(),
                                 }
                             }
-                            JSXAttrValue::JSXElement(elt) => Box::new(Expr::JSXElement(elt)),
-                            JSXAttrValue::JSXFragment(frag) => Box::new(Expr::JSXFragment(frag)),
+                            JSXAttrValue::JSXElement(elt) => Box::new(Expr::JSXElement(elt.take())),
+                            JSXAttrValue::JSXFragment(frag) => {
+                                Box::new(Expr::JSXFragment(frag.take()))
+                            }
                         };
                         props.push((JsWord::from(name), value));
                     } else {
                         _ = write!(self.quasi_last_mut(), "{name} ");
                     }
                 }
-                JSXAttrOrSpread::SpreadElement(SpreadElement { mut expr, .. }) => {
+                JSXAttrOrSpread::SpreadElement(SpreadElement { expr, .. }) => {
                     if let Expr::Object(ObjectLit {
                         props: obj_props, ..
                     }) = expr.as_mut()
@@ -160,7 +213,7 @@ impl TransformVisitor {
                                 props: vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(
                                     KeyValueProp {
                                         key: PropName::Ident(self.spread.clone()),
-                                        value: expr,
+                                        value: expr.take(),
                                     },
                                 )))],
                             })));
@@ -172,7 +225,7 @@ impl TransformVisitor {
                         span: DUMMY_SP,
                         props: vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
                             key: PropName::Ident(self.spread.clone()),
-                            value: expr,
+                            value: expr.take(),
                         })))],
                     })))
                 }
@@ -207,20 +260,20 @@ impl TransformVisitor {
             last.pop();
             last.push('>');
         }
-        for child in elt.children {
+        for child in &mut elt.children {
             self.fold_jsx_child(child);
         }
         _ = write!(self.quasi_last_mut(), "</{name}>")
     }
 
     #[inline]
-    fn fold_jsx_child(&mut self, child: JSXElementChild) {
+    fn fold_jsx_child(&mut self, child: &mut JSXElementChild) {
         match child {
             JSXElementChild::JSXText(JSXText { value, .. }) => {
                 _ = self.quasi_last_mut().write_str(value.trim());
             }
             JSXElementChild::JSXElement(elt) => {
-                self.fold_jsx_element(*elt);
+                self.fold_jsx_element(elt);
             }
             JSXElementChild::JSXFragment(JSXFragment { children, .. }) => {
                 for child in children {
@@ -228,25 +281,44 @@ impl TransformVisitor {
                 }
             }
             JSXElementChild::JSXExprContainer(JSXExprContainer {
-                expr: JSXExpr::Expr(mut expr),
+                expr: JSXExpr::Expr(expr),
                 ..
             }) => match expr.as_mut() {
                 Expr::JSXElement(elt) => {
-                    self.fold_jsx_element(*elt.take());
+                    let mut elt = elt.take();
+                    self.fold_jsx_element(&mut elt);
                 }
                 Expr::JSXFragment(frag) => {
-                    for child in frag.take().children {
+                    for child in &mut frag.take().children {
                         self.fold_jsx_child(child)
                     }
                 }
-                _ => todo!(),
+                _ => {
+                    self.quasis.push(" ".to_string());
+                    self.exprs.push(Box::new(Expr::Object(ObjectLit {
+                        span: DUMMY_SP,
+                        props: vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
+                            key: PropName::Ident(self.child.clone()),
+                            value: expr.take(),
+                        })))],
+                    })))
+                }
             },
-            JSXElementChild::JSXSpreadChild(..) => todo!(),
+            JSXElementChild::JSXSpreadChild(JSXSpreadChild { expr, .. }) => {
+                self.quasis.push(" ".to_string());
+                self.exprs.push(Box::new(Expr::Object(ObjectLit {
+                    span: DUMMY_SP,
+                    props: vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
+                        key: PropName::Ident(self.children.clone()),
+                        value: expr.take(),
+                    })))],
+                })))
+            }
             _ => {}
         }
     }
 
-    fn replace_jsx_element(&mut self, elt: JSXElement) -> Expr {
+    fn replace_jsx_element(&mut self, elt: &mut JSXElement) -> Expr {
         self.fold_jsx_element(elt);
         let mut quasis = core::mem::take(&mut self.quasis)
             .into_iter()
@@ -263,7 +335,7 @@ impl TransformVisitor {
         quasis.last_mut().unwrap().tail = true;
         Expr::TaggedTpl(TaggedTpl {
             span: DUMMY_SP,
-            tag: self.templator.clone(),
+            tag: self.template.clone(),
             type_params: None,
             tpl: Box::new(Tpl {
                 span: DUMMY_SP,
@@ -281,38 +353,35 @@ impl TransformVisitor {
             }
         }
     }
-    #[inline]
-    fn try_extract_tpl_from_expr(expr: &Expr) -> Option<&Atom> {
-        match expr {
-            Expr::Tpl(Tpl { quasis, .. }) => match &quasis[..] {
-                [TplElement { cooked, raw, .. }] => Some(cooked.as_ref().unwrap_or(raw)),
+
+    fn expr_as_jsx_elt(&self, n: &mut Expr) -> Option<Box<JSXElement>> {
+        match &*n {
+            Expr::JSXElement(elt) => match &elt.opening.name {
+                JSXElementName::Ident(ident) => ident
+                    .sym
+                    .starts_with(|p: char| p.is_ascii_lowercase())
+                    .then(|| {
+                        let Expr::JSXElement(elt) = n.take() else {unreachable!()};
+                        elt
+                    }),
+                JSXElementName::JSXNamespacedName(..) => {
+                    let Expr::JSXElement(elt) = n.take() else {unreachable!()};
+                    Some(elt)
+                }
                 _ => None,
             },
             _ => None,
         }
     }
-
-    fn needs_replace(&self, n: &Expr) -> bool {
-        if let Expr::JSXElement(elt) = n {
-            return match &elt.opening.name {
-                JSXElementName::Ident(ident) => {
-                    ident.sym.starts_with(|p: char| p.is_ascii_lowercase())
-                }
-                JSXElementName::JSXNamespacedName(..) => true,
-                JSXElementName::JSXMemberExpr(..) => false,
-            };
-        }
-        false
-    }
 }
 
 impl VisitMut for TransformVisitor {
     fn visit_mut_expr(&mut self, n: &mut Expr) {
-        if self.needs_replace(n) {
-            let Expr::JSXElement(elt) = n.take() else {unreachable!()};
+        if let Some(mut elt) = self.expr_as_jsx_elt(n) {
+            // let Expr::JSXElement(elt) = n.take() else {unreachable!()};
             let quasis = core::mem::take(&mut self.quasis);
             let exprs = core::mem::take(&mut self.exprs);
-            *n = self.replace_jsx_element(*elt);
+            *n = self.replace_jsx_element(&mut elt);
             let leftover_quasis = core::mem::replace(&mut self.quasis, quasis);
             assert_eq!(leftover_quasis.as_slice(), &[] as &[String]);
             let leftover_exprs = core::mem::replace(&mut self.exprs, exprs);
@@ -346,21 +415,86 @@ impl VisitMut for ExtractStaticProps<'_> {
             _ => return,
         };
         match n.value.as_mut() {
-            lit @ Expr::Lit(Lit::Str(..) | Lit::Bool(..) | Lit::Num(..)) => match lit.take() {
-                Expr::Lit(Lit::Str(str)) => {
-                    _ = write!(self.buffer, "{name}=\"{}\" ", str.value);
-                }
-                Expr::Lit(Lit::Bool(bool)) => {
-                    if bool.value {
-                        _ = write!(self.buffer, "{name} ");
+            lit @ Expr::Lit(Lit::Str(..) | Lit::Bool(..) | Lit::Num(..) | Lit::BigInt(..)) => {
+                match lit.take() {
+                    Expr::Lit(Lit::Str(str)) => {
+                        _ = write!(self.buffer, "{name}=\"{}\" ", str.value);
                     }
+                    Expr::Lit(Lit::Bool(bool)) => {
+                        if bool.value {
+                            _ = write!(self.buffer, "{name} ");
+                        }
+                    }
+                    Expr::Lit(Lit::Num(value)) => {
+                        _ = write!(self.buffer, "{name}=\"{}\" ", value.value);
+                    }
+                    Expr::Lit(Lit::BigInt(value)) => {
+                        _ = write!(self.buffer, "{name}=\"{}\" ", value.value.to_str_radix(10));
+                    }
+                    _ => unreachable!(),
                 }
-                Expr::Lit(Lit::Num(value)) => {
-                    _ = write!(self.buffer, "{name}=\"{}\"", value.value);
-                }
-                _ => todo!(),
-            },
-            _ => return,
+            }
+            _ => {}
         }
+    }
+}
+
+mod de {
+    use serde::{de::Visitor, Deserializer};
+    use swc_core::common::{BytePos, DUMMY_SP};
+    use swc_core::ecma::ast::{Expr, Ident};
+    use swc_core::ecma::parser::{Parser, StringInput, Syntax};
+    use swc_core::plugin::errors::HANDLER;
+
+    pub fn expr<'de, D>(de: D) -> Result<Box<Expr>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ExprVisitor;
+        impl<'de> Visitor<'de> for ExprVisitor {
+            type Value = Box<Expr>;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an expression")
+            }
+            #[inline]
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Parser::new(
+                    Syntax::Typescript(Default::default()),
+                    StringInput::new(v, BytePos::DUMMY, BytePos::DUMMY),
+                    None,
+                )
+                .parse_expr()
+                .map_err(|err| {
+                    let kind = err.kind().msg();
+                    HANDLER.with(|handler| err.into_diagnostic(handler).emit());
+                    E::custom(kind)
+                })
+            }
+        }
+        de.deserialize_str(ExprVisitor)
+    }
+
+    pub fn ident<'de, D>(de: D) -> Result<Ident, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct IdentVisitor;
+        impl<'de> Visitor<'de> for IdentVisitor {
+            type Value = Ident;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an identifier")
+            }
+            #[inline]
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Ident::new(v.into(), DUMMY_SP))
+            }
+        }
+        de.deserialize_str(IdentVisitor)
     }
 }
