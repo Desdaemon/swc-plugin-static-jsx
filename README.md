@@ -25,6 +25,9 @@ SWC plugin to transform JSX calls to static templates
 }
 ```
 
+In your tsconfig.json, `compilerOptions.jsx` should be set to 'preserve'. You will also need to
+provide your own JSX-related types under `namespace JSX`.
+
 ## Sample
 
 ```tsx
