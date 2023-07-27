@@ -1,0 +1,47 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Node.js E2E
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-e2e:
+    concurrency:
+      group: ci-node-${{ github.ref }}-${{ matrix.node-version }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests/e2e
+
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x, 20.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+          cache-dependency-path: tests/e2e/pnpm-lock.yaml
+      - name: Add WASI
+        run: rustup target add wasm32-wasi
+      - name: Build plugin
+        run: cargo build-wasi && cp target/wasm32-wasi/debug/swc_plugin_static_jsx.wasm .
+        working-directory: .
+      - run: pnpm install
+      - run: pnpm test
