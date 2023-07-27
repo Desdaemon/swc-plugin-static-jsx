@@ -6,7 +6,8 @@ use swc_core::common::DUMMY_SP;
 use swc_core::ecma::ast::*;
 use swc_core::ecma::atoms::js_word;
 use swc_core::ecma::atoms::{Atom, JsWord};
-use swc_core::ecma::visit::{VisitMut, VisitMutWith};
+use swc_core::ecma::visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
+use swc_core::trace_macro::swc_trace;
 
 #[derive(Deserialize)]
 pub struct TransformVisitor {
@@ -58,6 +59,7 @@ impl Default for TransformVisitor {
     }
 }
 
+#[swc_trace]
 impl TransformVisitor {
     #[inline]
     fn quasi_last_mut(&mut self) -> &mut String {
@@ -375,10 +377,11 @@ impl TransformVisitor {
     }
 }
 
+#[swc_trace]
 impl VisitMut for TransformVisitor {
+    noop_visit_mut_type!();
     fn visit_mut_expr(&mut self, n: &mut Expr) {
         if let Some(mut elt) = self.expr_as_jsx_elt(n) {
-            // let Expr::JSXElement(elt) = n.take() else {unreachable!()};
             let quasis = core::mem::take(&mut self.quasis);
             let exprs = core::mem::take(&mut self.exprs);
             *n = self.replace_jsx_element(&mut elt);
@@ -386,7 +389,9 @@ impl VisitMut for TransformVisitor {
             assert_eq!(leftover_quasis.as_slice(), &[] as &[String]);
             let leftover_exprs = core::mem::replace(&mut self.exprs, exprs);
             assert_eq!(leftover_exprs.as_slice(), &[] as &[_]);
+            return;
         }
+        n.visit_mut_children_with(self)
     }
 }
 
@@ -394,9 +399,11 @@ pub struct ExtractStaticProps<'a> {
     pub buffer: &'a mut String,
 }
 
+#[swc_trace]
 impl VisitMut for ExtractStaticProps<'_> {
+    noop_visit_mut_type!();
     fn visit_mut_prop_or_spreads(&mut self, n: &mut Vec<PropOrSpread>) {
-        VisitMutWith::visit_mut_children_with(n, self);
+        n.visit_mut_children_with(self);
         n.retain(|elt| match elt {
             PropOrSpread::Spread(SpreadElement { expr, .. }) => match expr.as_ref() {
                 Expr::Object(ObjectLit { props, .. }) => !props.is_empty(),
@@ -434,7 +441,7 @@ impl VisitMut for ExtractStaticProps<'_> {
                     _ => unreachable!(),
                 }
             }
-            _ => {}
+            _ => n.visit_mut_children_with(self),
         }
     }
 }

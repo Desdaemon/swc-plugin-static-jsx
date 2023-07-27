@@ -18,7 +18,8 @@ strip = "symbols"
 [dependencies]
 serde = { version = "1.0.175", features = ["derive"] }
 serde_json = "1.0.103"
-swc_core = { version = "0.79.24", features = ["ecma_plugin_transform", "common", "ecma_visit", "ecma_ast", "ecma_utils", "ecma_parser"] }
+swc_core = { version = "0.79.24", features = ["ecma_plugin_transform", "common", "ecma_visit", "ecma_ast", "ecma_utils", "ecma_parser", "trace_macro"] }
+tracing = "0.1.37"
 
 [dev-dependencies]
 testing = "0.33.21"

@@ -2,3 +2,7 @@
 ^target/
 target
 transform_static_jsx.wasm
+swc_plugin_static_jsx.wasm
+node_modules
+.swc
+trace-*.json

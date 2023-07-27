@@ -1353,6 +1353,7 @@ dependencies = [
  "serde_json",
  "swc_core",
  "testing",
+ "tracing",
 ]
 
 [[package]]
@@ -1423,6 +1424,7 @@ dependencies = [
  "swc_plugin",
  "swc_plugin_macro",
  "swc_plugin_proxy",
+ "swc_trace_macro",
  "vergen",
 ]
 
