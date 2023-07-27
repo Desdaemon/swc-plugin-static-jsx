@@ -6,3 +6,4 @@ swc_plugin_static_jsx.wasm
 node_modules
 .swc
 trace-*.json
+README.md

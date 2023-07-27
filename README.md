@@ -12,9 +12,12 @@ SWC plugin to transform JSX calls to static templates
   jsc: {
     experimental: {
       plugins: [
+        // All config values are optional.
         ['swc-plugin-static-jsx', {
-          // All config values are optional.
+          // If an identifier is supplied, it should not be an ambient global.
           template: 'String.raw',
+          // If supplied, template will be imported as `import { template } from 'my-library'`
+          importSource: 'my-library'
           spread: '$$spread',
           child: '$$child',
           children: '$$children',

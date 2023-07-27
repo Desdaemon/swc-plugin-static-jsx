@@ -1,6 +1,8 @@
-module.exports = {
+export default {
   transform: {    
     "^.+\\.(t|j)sx?$": ["@swc/jest", {
+      // Jest doesn't understand ESM yet.
+      module: { type: 'commonjs' },
       jsc: {
         target: 'esnext',
         parser: {
@@ -9,7 +11,8 @@ module.exports = {
         },
         experimental: {
           plugins: [['swc-plugin-static-jsx', {
-            template: "html"
+            template: "myHtml",
+            // importSource: './utils'
           }]]
         }
       }

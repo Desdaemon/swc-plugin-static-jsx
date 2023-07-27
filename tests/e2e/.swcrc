@@ -6,7 +6,9 @@
             "tsx": true
         },
         "experimental": {
-            "plugins": [["swc-plugin-static-jsx", {}]]
+            "plugins": [["swc-plugin-static-jsx", {
+                "template": "myHtml"
+            }]]
         }
     }
 }

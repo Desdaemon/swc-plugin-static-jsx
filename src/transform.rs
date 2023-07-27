@@ -2,27 +2,32 @@ use serde::Deserialize;
 use std::borrow::Cow;
 use std::fmt::Write;
 use swc_core::common::util::take::Take;
-use swc_core::common::DUMMY_SP;
+use swc_core::common::{Mark, Span, Spanned, DUMMY_SP};
 use swc_core::ecma::ast::*;
 use swc_core::ecma::atoms::js_word;
 use swc_core::ecma::atoms::{Atom, JsWord};
 use swc_core::ecma::visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
+use swc_core::plugin::errors::HANDLER;
 use swc_core::trace_macro::swc_trace;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TransformVisitor {
     #[serde(deserialize_with = "de::expr", default = "default_template_fn")]
-    pub template: Box<Expr>,
+    template: Box<Expr>,
+    #[serde(deserialize_with = "de::str", default)]
+    import_source: Option<Str>,
     #[serde(deserialize_with = "de::ident", default = "default_spread")]
-    pub spread: Ident,
+    spread: Ident,
     #[serde(deserialize_with = "de::ident", default = "default_child")]
-    pub child: Ident,
+    child: Ident,
     #[serde(deserialize_with = "de::ident", default = "default_children")]
-    pub children: Ident,
+    children: Ident,
     #[serde(skip)]
-    pub quasis: Vec<String>,
+    quasis: Vec<String>,
     #[serde(skip)]
-    pub exprs: Vec<Box<Expr>>,
+    #[allow(clippy::vec_box)]
+    exprs: Vec<Box<Expr>>,
 }
 
 #[inline]
@@ -53,6 +58,7 @@ impl Default for TransformVisitor {
             child: default_child(),
             children: default_children(),
             spread: default_spread(),
+            import_source: None,
             quasis: vec![],
             exprs: vec![],
         }
@@ -67,10 +73,12 @@ impl TransformVisitor {
     }
 
     fn fold_jsx_element(&mut self, elt: &mut JSXElement) {
-        let JSXOpeningElement { name, attrs, .. } = &mut elt.opening;
+        let JSXOpeningElement {
+            span, name, attrs, ..
+        } = &mut elt.opening;
         let name = match name {
             JSXElementName::JSXNamespacedName(name) => format!("{}:{}", name.ns.sym, name.name.sym),
-            JSXElementName::JSXMemberExpr(..) => unreachable!(),
+            JSXElementName::JSXMemberExpr(..) => unreachable(span.take()),
             JSXElementName::Ident(ident) => ident.sym.to_string(),
         };
         fn extract_static_attr_pair(
@@ -81,9 +89,9 @@ impl TransformVisitor {
                     Some(JSXAttrValue::Lit(Lit::Str(Str { value, .. }))) => {
                         Some((name, Some(value.as_ref())))
                     }
-                    Some(JSXAttrValue::Lit(other_lit)) => {
-                        unreachable!("JSX attribute value {other_lit:?}")
-                    }
+                    Some(JSXAttrValue::Lit(other_lit)) => HANDLER.with(|handler| {
+                        handler.span_bug(other_lit.span(), "Impossible JSX attribute value")
+                    }),
                     Some(JSXAttrValue::JSXExprContainer(JSXExprContainer {
                         expr: JSXExpr::Expr(expr),
                         ..
@@ -164,11 +172,11 @@ impl TransformVisitor {
         }
 
         let mut props = vec![];
-        for attr in attrs.into_iter().skip(leading_static_attrs_count) {
-            if let Some((name, value)) = extract_static_attr_pair(&attr) {
+        for attr in attrs.iter_mut().skip(leading_static_attrs_count) {
+            if let Some((name, value)) = extract_static_attr_pair(attr) {
                 let name = Self::jsx_attr_name_as_str(name);
                 let last = self.quasi_last_mut();
-                if let Some(value) = value.as_deref() {
+                if let Some(value) = value {
                     _ = write!(last, "{name}=\"{value}\" ");
                 } else {
                     _ = write!(last, "{name} ");
@@ -177,7 +185,7 @@ impl TransformVisitor {
             }
             match attr {
                 JSXAttrOrSpread::JSXAttr(JSXAttr { name, value, .. }) => {
-                    let name = Self::jsx_attr_name_as_str(&name);
+                    let name = Self::jsx_attr_name_as_str(name);
                     if let Some(value) = value {
                         let value = match value {
                             JSXAttrValue::Lit(lit) => Box::new(Expr::Lit(take_lit(lit))),
@@ -234,7 +242,6 @@ impl TransformVisitor {
             }
         }
         if !props.is_empty() {
-            // TODO: Explore more opportunities for collapsing statics
             self.quasis.push(" ".to_string());
             self.exprs.push(Box::new(Expr::Object(ObjectLit {
                 span: DUMMY_SP,
@@ -357,17 +364,18 @@ impl TransformVisitor {
     }
 
     fn expr_as_jsx_elt(&self, n: &mut Expr) -> Option<Box<JSXElement>> {
+        let span_n = n.span();
         match &*n {
             Expr::JSXElement(elt) => match &elt.opening.name {
                 JSXElementName::Ident(ident) => ident
                     .sym
                     .starts_with(|p: char| p.is_ascii_lowercase())
                     .then(|| {
-                        let Expr::JSXElement(elt) = n.take() else {unreachable!()};
+                        let Expr::JSXElement(elt) = n.take() else {unreachable(span_n)};
                         elt
                     }),
                 JSXElementName::JSXNamespacedName(..) => {
-                    let Expr::JSXElement(elt) = n.take() else {unreachable!()};
+                    let Expr::JSXElement(elt) = n.take() else {unreachable(span_n)};
                     Some(elt)
                 }
                 _ => None,
@@ -377,7 +385,7 @@ impl TransformVisitor {
     }
 }
 
-#[swc_trace]
+// #[swc_trace]
 impl VisitMut for TransformVisitor {
     noop_visit_mut_type!();
     fn visit_mut_expr(&mut self, n: &mut Expr) {
@@ -392,6 +400,40 @@ impl VisitMut for TransformVisitor {
             return;
         }
         n.visit_mut_children_with(self)
+    }
+    fn visit_mut_module(&mut self, n: &mut Module) {
+        if let Some(src) = self.import_source.clone() {
+            let Expr::Ident(ident) = self.template.unwrap_parens_mut() else {
+                    HANDLER.with(|handler| {
+                        handler
+                            .struct_err("[swc-plugin-static-jsx] incompatible template function")
+                            .note("expected `template` to be an identifier because `importSource` was specified")
+                            .emit()
+                    });
+                    return;
+                };
+            let import_ident = ident.clone();
+            ident.span = ident.span.apply_mark(Mark::new());
+            let import = ImportSpecifier::Named(ImportNamedSpecifier {
+                span: DUMMY_SP,
+                local: ident.clone(),
+                imported: Some(ModuleExportName::Ident(import_ident)),
+                is_type_only: false,
+            });
+            n.body.insert(
+                0,
+                ModuleItem::ModuleDecl(ModuleDecl::Import(ImportDecl {
+                    span: DUMMY_SP,
+                    specifiers: vec![import],
+                    src: Box::new(src),
+                    type_only: false,
+                    asserts: None,
+                })),
+            );
+        } else if let Expr::Ident(ident) = self.template.unwrap_parens_mut() {
+            ident.span = ident.span.apply_mark(Mark::from_u32(2));
+        }
+        n.visit_mut_children_with(self);
     }
 }
 
@@ -438,7 +480,7 @@ impl VisitMut for ExtractStaticProps<'_> {
                     Expr::Lit(Lit::BigInt(value)) => {
                         _ = write!(self.buffer, "{name}=\"{}\" ", value.value.to_str_radix(10));
                     }
-                    _ => unreachable!(),
+                    _ => unreachable(n.span()),
                 }
             }
             _ => n.visit_mut_children_with(self),
@@ -446,10 +488,15 @@ impl VisitMut for ExtractStaticProps<'_> {
     }
 }
 
+#[cold]
+fn unreachable(span: Span) -> ! {
+    HANDLER.with(|handler| handler.span_bug(span, "Encountered unreachable code"))
+}
+
 mod de {
     use serde::{de::Visitor, Deserializer};
     use swc_core::common::{BytePos, DUMMY_SP};
-    use swc_core::ecma::ast::{Expr, Ident};
+    use swc_core::ecma::ast::{Expr, Ident, Str};
     use swc_core::ecma::parser::{Parser, StringInput, Syntax};
     use swc_core::plugin::errors::HANDLER;
 
@@ -503,5 +550,31 @@ mod de {
             }
         }
         de.deserialize_str(IdentVisitor)
+    }
+
+    pub fn str<'de, D>(de: D) -> Result<Option<Str>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct OptStrVisitor;
+        impl<'de> Visitor<'de> for OptStrVisitor {
+            type Value = Option<Str>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a string")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Some(Str {
+                    span: DUMMY_SP,
+                    value: v.into(),
+                    raw: None,
+                }))
+            }
+        }
+        de.deserialize_str(OptStrVisitor)
     }
 }
