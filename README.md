@@ -1,4 +1,7 @@
 # swc-plugin-static-jsx
+[![Rust](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/rust.yml/badge.svg)](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/rust.yml)
+[![Node.js E2E](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/e2e.yml/badge.svg)](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/e2e.yml)
+
 SWC plugin to transform JSX calls to static templates
 
 ## Usage
@@ -25,10 +28,11 @@ SWC plugin to transform JSX calls to static templates
 ## Sample
 
 ```tsx
+let unsanitized = "<script>alert(\"You've been pwned!\")</script>"
 // input
 <div foo="bar" baz={true} {...spread} {...{"std::string": "value"}}>
   The quick brown fox jumps over the <strong>lazy</strong> dog.
-  {"<script>alert(\"You've been pwned!\")</script>"}
+  {unsanitized}
   {...children}
 </div>
 
@@ -36,7 +40,7 @@ SWC plugin to transform JSX calls to static templates
 html`
 <div foo="bar" baz ${{$$spread: spread}} std::string="value">
   The quick brown fox jumps over the<strong>lazy</strong>dog.
-  ${{$$child: "<script>alert(\"You've been pwned!\")</script>"}}
+  ${{$$child: unsanitized}}
   ${{$$children: children}}
 </div>`
 ```
