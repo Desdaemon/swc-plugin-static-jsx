@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
+use swc_core::common::{chain, Mark};
 use swc_core::ecma::parser::{EsConfig, Syntax};
+use swc_core::ecma::transforms::base::resolver;
 use swc_core::ecma::transforms::testing::test_fixture;
 use swc_core::ecma::visit::as_folder;
 use swc_plugin_static_jsx::TransformVisitor;
@@ -19,7 +21,12 @@ fn tests(input: PathBuf) {
 
     test_fixture(
         syntax(),
-        &|_| as_folder(TransformVisitor::default()),
+        &|_| {
+            chain!(
+                resolver(Mark::new(), Mark::new(), false),
+                as_folder(TransformVisitor::default()),
+            )
+        },
         &input,
         &output,
         Default::default(),

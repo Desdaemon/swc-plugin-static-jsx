@@ -1,3 +1,3 @@
 function MyComponent() {
-    return String.raw`<div>Hello there!</div>`
+    return '<!DOCTYPE html>' + String.raw`<div>Hello there!</div>`;
 }

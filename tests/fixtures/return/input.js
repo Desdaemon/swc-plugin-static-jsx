@@ -1,3 +1,3 @@
 function MyComponent() {
-    return <div>Hello there!</div>
+    return '<!DOCTYPE html>' + <div>Hello there!</div>
 }
