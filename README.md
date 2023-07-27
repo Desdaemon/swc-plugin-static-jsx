@@ -1,4 +1,5 @@
 # swc-plugin-static-jsx
+
 [![Rust](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/rust.yml/badge.svg)](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/rust.yml)
 [![Node.js E2E](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/e2e.yml/badge.svg)](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/e2e.yml)
 
@@ -52,21 +53,22 @@ html`
 ```
 
 Sample implementation of `html`:
+
 ```ts
 function html(raw, ...children: Record<string, unknown>[]) {
   all: for (const child of children) {
     for (const key in child) {
       switch (key) {
-      case "$$child":
-        // ..
-        continue all
-      case "$$children":
-        // ..
-        continue all
-      case "$$spread":
-        // ..
-        continue all
-      default:
+        case "$$child":
+          // ..
+          continue all;
+        case "$$children":
+          // ..
+          continue all;
+        case "$$spread":
+          // ..
+          continue all;
+        default:
         // ..
       }
     }
