@@ -5,6 +5,25 @@
 
 SWC plugin to transform JSX calls to static templates
 
+## Install
+
+> **Note**
+> This plugin is not yet published on npmjs.com. Until such time, you'll need to compile the plugin from source to use it.
+
+```shell
+npm i -D @swc/core swc-plugin-static-jsx
+```
+
+### From source
+
+```shell
+git clone https://github.com/Desdaemon/swc-plugin-static-jsx
+cd swc-plugin-static-jsx
+rustup target add wasm32-wasi
+npm run dist
+npm link
+```
+
 ## Usage
 
 ```jsonc
