@@ -7,21 +7,21 @@ SWC plugin to transform JSX calls to static templates
 
 ## Usage
 
-```js
+```jsonc
 // In .swcrc:
 {
-  jsc: {
-    experimental: {
-      plugins: [
+  "jsc": {
+    "experimental": {
+      "plugins": [
         // All config values are optional.
-        ['swc-plugin-static-jsx', {
-          // If an identifier is supplied, it should not be an ambient global.
-          template: 'String.raw',
+        ["swc-plugin-static-jsx", {
+          // If an identifier is supplied, it should not be an ambient global. Can be null.
+          "template": "String.raw",
           // If supplied, template will be imported as `import { template } from 'my-library'`
-          importSource: 'my-library'
-          spread: '$$spread',
-          child: '$$child',
-          children: '$$children',
+          "importSource": "my-library",
+          "spread": "$$spread",
+          "child": "$$child",
+          "children": "$$children",
         }]
       ]
     }
@@ -57,21 +57,19 @@ Sample implementation of `html`:
 ```ts
 function html(raw, ...children: Record<string, unknown>[]) {
   all: for (const child of children) {
-    for (const key in child) {
-      switch (key) {
-        case "$$child":
-          // ..
-          continue all;
-        case "$$children":
-          // ..
-          continue all;
-        case "$$spread":
-          // ..
-          continue all;
-        default:
-        // ..
-      }
+    if ('$$spread' in child) {
+      // ..
+      continue all
     }
+    if ('$$child' in child) {
+      // ..
+      continue all
+    }
+    if ('$$children' in child) {
+      // ..
+      continue all
+    }
+    // ..
   }
 }
 ```
