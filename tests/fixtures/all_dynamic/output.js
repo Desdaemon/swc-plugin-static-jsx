@@ -1,1 +1,1 @@
-String.raw`<div ${{"foo": 2}} />`
+String.raw`<div foo="2" />`

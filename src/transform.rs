@@ -1,5 +1,6 @@
 use core::mem;
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::fmt::Write;
 use swc_core::common::util::take::Take;
 use swc_core::common::{Mark, Spanned, DUMMY_SP};
@@ -86,10 +87,10 @@ impl TransformVisitor {
 			JSXElementName::Ident(ident) => ident.sym.to_string(),
 		};
 
-		fn extract_static_attr_pair(attr: &JSXAttrOrSpread) -> Option<(&JSXAttrName, Option<&str>)> {
+		fn extract_static_attr_pair(attr: &JSXAttrOrSpread) -> Option<(&JSXAttrName, Option<Cow<str>>)> {
 			match attr {
 				JSXAttrOrSpread::JSXAttr(JSXAttr { name, value, .. }) => match value {
-					Some(JSXAttrValue::Lit(Lit::Str(Str { value, .. }))) => Some((name, Some(value.as_ref()))),
+					Some(JSXAttrValue::Lit(Lit::Str(Str { value, .. }))) => Some((name, Some(value.as_ref().into()))),
 					Some(JSXAttrValue::Lit(other_lit)) => {
 						HANDLER.with(|handler| handler.span_bug(other_lit.span(), "Impossible JSX attribute value"))
 					}
@@ -101,10 +102,11 @@ impl TransformVisitor {
 							let [TplElement { cooked, raw, .. }] = &tpl.quasis[..] else {
 								unreachable(tpl.span)
 							};
-							Some((name, Some(cooked.as_deref().unwrap_or(raw.trim()))))
+							Some((name, Some(cooked.as_deref().unwrap_or(raw.trim()).into())))
 						}
 						Expr::Lit(Lit::Bool(value)) if value.value => Some((name, None)),
-						Expr::Lit(Lit::Str(Str { value, .. })) => Some((name, Some(value.as_ref()))),
+						Expr::Lit(Lit::Str(Str { value, .. })) => Some((name, Some(value.as_ref().into()))),
+						Expr::Lit(Lit::Num(Number { value, .. })) => Some((name, Some(value.to_string().into()))),
 						_ => None,
 					},
 					Some(_) => None,
