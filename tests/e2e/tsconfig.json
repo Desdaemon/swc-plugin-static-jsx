@@ -1,8 +1,8 @@
 {
-  "compilerOptions": {
-    "types": ["jest", "node"],
-    "allowJs": true,
-    "checkJs": true,
-    "jsx": "preserve"
-  }
+	"compilerOptions": {
+		"types": ["jest", "node"],
+		"allowJs": true,
+		"checkJs": true,
+		"jsx": "preserve"
+	}
 }
