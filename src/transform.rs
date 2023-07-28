@@ -246,35 +246,47 @@ impl TransformVisitor {
 				expr: JSXExpr::Expr(expr),
 				..
 			}) => match expr.as_mut() {
-				Expr::JSXElement(elt) => {
-					let mut elt = elt.take();
-					self.fold_jsx_element(&mut elt);
-				}
+				Expr::JSXElement(elt) => self.fold_jsx_element(elt),
 				Expr::JSXFragment(frag) => {
-					for child in &mut frag.take().children {
+					for child in &mut frag.children {
 						self.fold_jsx_child(child)
 					}
 				}
-				_ => {
-					self.quasis.push(" ".to_string());
-					self.exprs.push(Box::new(Expr::Object(ObjectLit {
+				Expr::Lit(Lit::Str(str)) => {
+					_ = write!(self.quasi_last_mut(), "{} ", str.value.trim());
+				}
+				Expr::Lit(Lit::Num(value)) => {
+					_ = write!(self.quasi_last_mut(), "{} ", value.value);
+				}
+				Expr::Tpl(Tpl { exprs, quasis, span }) if exprs.is_empty() => {
+					let [TplElement { cooked, raw, .. }] = &quasis[..] else {
+						unreachable(*span)
+					};
+					let value = cooked.as_ref().unwrap_or(&raw);
+					let last = self.quasi_last_mut();
+					for line in value.lines().map(str::trim).filter(|line| !line.is_empty()) {
+						_ = writeln!(last, "{line}");
+					}
+				}
+				other => {
+					eprintln!("{other:?}");
+					self.push(Box::new(Expr::Object(ObjectLit {
 						span: DUMMY_SP,
 						props: vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
 							key: PropName::Ident(self.child.clone()),
 							value: expr.take(),
 						})))],
-					})))
+					})));
 				}
 			},
 			JSXElementChild::JSXSpreadChild(JSXSpreadChild { expr, .. }) => {
-				self.quasis.push(" ".to_string());
-				self.exprs.push(Box::new(Expr::Object(ObjectLit {
+				self.push(Box::new(Expr::Object(ObjectLit {
 					span: DUMMY_SP,
 					props: vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
 						key: PropName::Ident(self.children.clone()),
 						value: expr.take(),
 					})))],
-				})))
+				})));
 			}
 			_ => {}
 		}

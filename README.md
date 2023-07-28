@@ -10,22 +10,25 @@ SWC plugin to transform JSX calls to static templates
 ```jsonc
 // In .swcrc:
 {
-  "jsc": {
-    "experimental": {
-      "plugins": [
-        // All config values are optional.
-        ["swc-plugin-static-jsx", {
-          // If an identifier is supplied, it should not be an ambient global. Can be null.
-          "template": "String.raw",
-          // If supplied, template will be imported as `import { template } from 'my-library'`
-          "importSource": "my-library",
-          "spread": "$$spread",
-          "child": "$$child",
-          "children": "$$children",
-        }]
-      ]
-    }
-  }
+	"jsc": {
+		"experimental": {
+			"plugins": [
+				// All config values are optional.
+				[
+					"swc-plugin-static-jsx",
+					{
+						// If an identifier is supplied, it should not be an ambient global. Can be null.
+						"template": "String.raw",
+						// If supplied, template will be imported as `import { template } from 'my-library'`
+						"importSource": "my-library",
+						"spread": "$$spread",
+						"child": "$$child",
+						"children": "$$children"
+					}
+				]
+			]
+		}
+	}
 }
 ```
 
@@ -56,20 +59,20 @@ Sample implementation of `html`:
 
 ```ts
 function html(raw, ...children: Record<string, unknown>[]) {
-  all: for (const child of children) {
-    if ('$$spread' in child) {
-      // ..
-      continue all
-    }
-    if ('$$child' in child) {
-      // ..
-      continue all
-    }
-    if ('$$children' in child) {
-      // ..
-      continue all
-    }
-    // ..
-  }
+	all: for (const child of children) {
+		if ("$$spread" in child) {
+			// ..
+			continue all;
+		}
+		if ("$$child" in child) {
+			// ..
+			continue all;
+		}
+		if ("$$children" in child) {
+			// ..
+			continue all;
+		}
+		// ..
+	}
 }
 ```
