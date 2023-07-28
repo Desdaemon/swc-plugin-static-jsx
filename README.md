@@ -10,25 +10,25 @@ SWC plugin to transform JSX calls to static templates
 ```jsonc
 // In .swcrc:
 {
-	"jsc": {
-		"experimental": {
-			"plugins": [
-				// All config values are optional.
-				[
-					"swc-plugin-static-jsx",
-					{
-						// If an identifier is supplied, it should not be an ambient global. Can be null.
-						"template": "String.raw",
-						// If supplied, template will be imported as `import { template } from 'my-library'`
-						"importSource": "my-library",
-						"spread": "$$spread",
-						"child": "$$child",
-						"children": "$$children"
-					}
-				]
-			]
-		}
-	}
+  "jsc": {
+    "experimental": {
+      "plugins": [
+        // All config values are optional.
+        [
+          "swc-plugin-static-jsx",
+          {
+            // If an identifier is supplied, it should not be an ambient global. Can be null.
+            "template": "String.raw",
+            // If supplied, template will be imported as `import { template } from 'my-library'`
+            "importSource": "my-library",
+            "spread": "$$spread",
+            "child": "$$child",
+            "children": "$$children"
+          }
+        ]
+      ]
+    }
+  }
 }
 ```
 
@@ -37,42 +37,47 @@ provide your own JSX-related types under `namespace JSX`.
 
 ## Sample
 
-```tsx
-let unsanitized = "<script>alert(\"You've been pwned!\")</script>"
+```jsx
+let unsanitized = '<script>alert("You\'ve been pwned!")</script>';
 // input
-<div foo="bar" baz={true} {...spread} {...{"std::string": "value"}}>
-  The quick brown fox jumps over the <strong>lazy</strong> dog.
-  {unsanitized}
-  {...children}
-</div>
+function MyComponent() {
+  return (
+    <div foo="bar" baz={true} {...spread} {...{ "std::string": "value" }}>
+      The quick brown fox jumps over the <strong>lazy</strong> dog.
+      {unsanitized}
+      {...children}
+    </div>
+  );
+}
 
 // output (approximate)
-html`
-<div foo="bar" baz ${{$$spread: spread}} std::string="value">
-  The quick brown fox jumps over the<strong>lazy</strong>dog.
-  ${{$$child: unsanitized}}
-  ${{$$children: children}}
-</div>`
+function MyComponent() {
+  return html`<div foo="bar" baz ${{ $$spread: spread }} std::string="value">
+    The quick brown fox jumps over the<strong>lazy</strong>dog. ${{
+      $$child: unsanitized,
+    }} ${{ $$children: children }}
+  </div>`;
+}
 ```
 
 Sample implementation of `html`:
 
-```ts
+```tsx
 function html(raw, ...children: Record<string, unknown>[]) {
-	all: for (const child of children) {
-		if ("$$spread" in child) {
-			// ..
-			continue all;
-		}
-		if ("$$child" in child) {
-			// ..
-			continue all;
-		}
-		if ("$$children" in child) {
-			// ..
-			continue all;
-		}
-		// ..
-	}
+  all: for (const child of children) {
+    if ("$$spread" in child) {
+      // ..
+      continue all;
+    }
+    if ("$$child" in child) {
+      // ..
+      continue all;
+    }
+    if ("$$children" in child) {
+      // ..
+      continue all;
+    }
+    // ..
+  }
 }
 ```
