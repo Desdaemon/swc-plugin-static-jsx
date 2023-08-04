@@ -100,3 +100,7 @@ function html(raw, ...children: Record<string, unknown>[]) {
   }
 }
 ```
+
+## License
+
+SPDX Identifier: `MIT OR Apache-2`
