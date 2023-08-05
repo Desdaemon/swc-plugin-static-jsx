@@ -7,6 +7,7 @@ use swc_core::common::{Mark, Spanned, DUMMY_SP};
 use swc_core::ecma::ast::*;
 use swc_core::ecma::atoms::js_word;
 use swc_core::ecma::atoms::{Atom, JsWord};
+use swc_core::ecma::utils::IdentExt;
 use swc_core::ecma::visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
 use swc_core::plugin::errors::HANDLER;
 use swc_core::trace_macro::swc_trace;
@@ -292,8 +293,10 @@ impl TransformVisitor {
 		}
 	}
 
-	fn replace_jsx_element(&mut self, elt: &mut JSXElement) -> Expr {
-		self.fold_jsx_element(elt);
+	fn replace_jsx_element(&mut self, elt: Option<&mut JSXElement>) -> Expr {
+		if let Some(elt) = elt {
+			self.fold_jsx_element(elt);
+		}
 		let mut quasis = mem::take(&mut self.quasis)
 			.into_iter()
 			.map(|raw| {
@@ -325,6 +328,17 @@ impl TransformVisitor {
 			}),
 		}
 	}
+
+	fn swap_state<T>(&mut self, blk: impl FnOnce(&mut Self) -> T) -> T {
+		let quasis = mem::take(&mut self.quasis);
+		let exprs = mem::take(&mut self.exprs);
+		let ret = blk(self);
+		let leftover_quasis = mem::replace(&mut self.quasis, quasis);
+		assert_eq!(leftover_quasis.as_slice(), &[] as &[String]);
+		let leftover_exprs = mem::replace(&mut self.exprs, exprs);
+		assert_eq!(leftover_exprs.as_slice(), &[] as &[_]);
+		ret
+	}
 }
 
 #[swc_trace]
@@ -332,13 +346,17 @@ impl VisitMut for TransformVisitor {
 	noop_visit_mut_type!();
 	fn visit_mut_expr(&mut self, n: &mut Expr) {
 		if let Some(mut elt) = expr_as_jsx_elt(n) {
-			let quasis = mem::take(&mut self.quasis);
-			let exprs = mem::take(&mut self.exprs);
-			*n = self.replace_jsx_element(&mut elt);
-			let leftover_quasis = mem::replace(&mut self.quasis, quasis);
-			assert_eq!(leftover_quasis.as_slice(), &[] as &[String]);
-			let leftover_exprs = mem::replace(&mut self.exprs, exprs);
-			assert_eq!(leftover_exprs.as_slice(), &[] as &[_]);
+			self.swap_state(|me| *n = me.replace_jsx_element(Some(&mut elt)));
+			return;
+		}
+		if let Some(mut frag) = expr_as_jsx_fragment(n) {
+			self.swap_state(|me| {
+				me.quasis.push(String::new());
+				for child in frag.children.iter_mut() {
+					me.fold_jsx_child(child);
+				}
+				*n = me.replace_jsx_element(None);
+			});
 			return;
 		}
 		n.visit_mut_children_with(self)
@@ -355,6 +373,7 @@ impl VisitMut for TransformVisitor {
 				return;
 			};
 			let import_ident = ident.clone();
+			*ident = ident.prefix("_");
 			ident.span = ident.span.apply_mark(Mark::new());
 			let import = ImportSpecifier::Named(ImportNamedSpecifier {
 				span: DUMMY_SP,
@@ -497,6 +516,17 @@ mod utils {
 			},
 			_ => None,
 		}
+	}
+
+	pub fn expr_as_jsx_fragment(n: &mut Expr) -> Option<JSXFragment> {
+		let span_n = n.span();
+		if let Expr::JSXFragment(..) = n {
+			let Expr::JSXFragment(frag) = n.take() else {
+				unreachable(span_n)
+			};
+			return Some(frag);
+		}
+		None
 	}
 
 	pub fn jsx_attr_name_as_str(attr: &JSXAttrName) -> Cow<str> {
