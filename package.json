@@ -1,14 +1,21 @@
 {
 	"name": "swc-plugin-static-jsx",
 	"version": "0.1.0",
-	"description": "",
+	"description": "Transform JSX into static tagged templates",
 	"author": "Viet Dinh",
-	"license": "ISC",
+	"license": "MIT OR Apache-2",
 	"keywords": [
-		"swc-plugin"
+		"swc-plugin",
+		"jsx",
+		"HTML",
+		"template"
 	],
 	"main": "swc_plugin_static_jsx.wasm",
 	"types": "types.d.ts",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Desdaemon/swc-plugin-static-jsx.git"
+	},
 	"scripts": {
 		"prepublishOnly": "cargo build-wasi --profile min",
 		"prepack": "cp target/wasm32-wasi/min/swc_plugin_static_jsx.wasm .",
@@ -19,8 +26,6 @@
 	"files": [
 		"swc_plugin_static_jsx.wasm",
 		"types.d.ts",
-		"src",
-		"Cargo.toml",
 		"."
 	]
 }

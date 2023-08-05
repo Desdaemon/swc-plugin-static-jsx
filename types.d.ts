@@ -36,3 +36,6 @@ export interface Config {
 export type TemplateFunction = (template: TemplateStringsArray, ...children: Child[]) => unknown;
 
 export type Child = { $$children: unknown } | { $$child: unknown } | { $$spread: unknown } | Record<string, unknown>;
+
+declare const module: WebAssembly.Module;
+export default module;
