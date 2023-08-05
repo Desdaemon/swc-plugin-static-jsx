@@ -1,14 +1,12 @@
 # swc-plugin-static-jsx
 
+[![npm](https://img.shields.io/npm/v/swc-plugin-static-jsx)](https://www.npmjs.com/package/swc-plugin-static-jsx)
 [![Rust](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/rust.yml/badge.svg)](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/rust.yml)
 [![Node.js E2E](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/e2e.yml/badge.svg)](https://github.com/Desdaemon/swc-plugin-static-jsx/actions/workflows/e2e.yml)
 
 SWC plugin to transform JSX calls to static templates
 
 ## Install
-
-> **Note**
-> This plugin is not yet published on npmjs.com. Until such time, you'll need to compile the plugin from source to use it.
 
 ```shell
 npm i -D @swc/core swc-plugin-static-jsx
