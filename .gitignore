@@ -7,3 +7,4 @@ node_modules
 .swc
 trace-*.json
 README.md
+tests/e2e/.trace.json

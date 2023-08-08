@@ -10,7 +10,6 @@ use swc_core::ecma::atoms::{Atom, JsWord};
 use swc_core::ecma::utils::IdentExt;
 use swc_core::ecma::visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
 use swc_core::plugin::errors::HANDLER;
-use swc_core::trace_macro::swc_trace;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -67,7 +66,6 @@ impl Default for TransformVisitor {
 	}
 }
 
-#[swc_trace]
 impl TransformVisitor {
 	#[inline]
 	fn quasi_last_mut(&mut self) -> &mut String {
@@ -351,7 +349,6 @@ impl TransformVisitor {
 	}
 }
 
-#[swc_trace]
 impl VisitMut for TransformVisitor {
 	noop_visit_mut_type!();
 	fn visit_mut_expr(&mut self, n: &mut Expr) {
@@ -412,7 +409,6 @@ pub struct ExtractStaticProps<'a> {
 	pub buffer: &'a mut String,
 }
 
-#[swc_trace]
 impl VisitMut for ExtractStaticProps<'_> {
 	noop_visit_mut_type!();
 	fn visit_mut_prop_or_spreads(&mut self, n: &mut Vec<PropOrSpread>) {
