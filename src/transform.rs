@@ -215,8 +215,18 @@ impl TransformVisitor {
 				.collect();
 			self.push(Box::new(Expr::Object(ObjectLit { span: DUMMY_SP, props })));
 		}
+
+		static VOID_ELEMENTS: phf::Set<&str> = phf::phf_set!(
+			"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track",
+			"wbr"
+		);
+
 		if elt.children.is_empty() {
-			self.quasi_last_mut().push_str("/>");
+			if VOID_ELEMENTS.contains(&name) {
+				self.quasi_last_mut().push('>');
+			} else {
+				self.quasi_last_mut().push_str("/>");
+			}
 			return;
 		}
 		{
