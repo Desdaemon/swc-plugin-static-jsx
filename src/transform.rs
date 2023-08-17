@@ -211,7 +211,9 @@ impl TransformVisitor {
 					})))
 				})
 				.collect();
-			self.push(Box::new(Expr::Object(ObjectLit { span: DUMMY_SP, props })));
+			self.exprs
+				.push(Box::new(Expr::Object(ObjectLit { span: DUMMY_SP, props })));
+			self.quasis.push(String::new());
 		}
 
 		static VOID_ELEMENTS: phf::Set<&str> = phf::phf_set!(
@@ -229,7 +231,9 @@ impl TransformVisitor {
 		}
 		{
 			let last = self.quasi_last_mut();
-			last.pop();
+			if last.ends_with(' ') {
+				last.pop();
+			}
 			last.push('>');
 		}
 		for child in &mut elt.children {
