@@ -1,6 +1,6 @@
 {
 	"name": "swc-plugin-static-jsx",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Transform JSX into static tagged templates",
 	"author": "Viet Dinh <54ckb0y789@gmail.com>",
 	"license": "MIT OR Apache-2",
