@@ -17,8 +17,8 @@
 		"url": "https://github.com/Desdaemon/swc-plugin-static-jsx.git"
 	},
 	"scripts": {
-		"prepublishOnly": "cargo build-wasi --profile min",
-		"prepack": "cp target/wasm32-wasi/min/swc_plugin_static_jsx.wasm .",
+		"prepublishOnly": "cargo build-wasi",
+		"prepack": "cp target/wasm32-wasi/release/swc_plugin_static_jsx.wasm .",
 		"postpack": "rm swc_plugin_static_jsx.wasm",
 		"dist": "npm run prepublishOnly && npm run prepack",
 		"lint": "prettier -w . && cargo +nightly fmt"
